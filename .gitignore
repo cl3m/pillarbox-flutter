@@ -1,0 +1,5 @@
+android/.idea
+example/android/app/.cxx
+ios/pillarbox/.build
+.dart_tool
+.fvm
