@@ -3,9 +3,7 @@ import Flutter
 import SwiftUI
 
 class PillarboxNativeView: UIView, FlutterPlatformView {
-    var cancellables = Set<AnyCancellable>()
     let rootView: PillarboxView
-    let channel: FlutterMethodChannel
 
     init(
         frame: CGRect,
@@ -14,30 +12,11 @@ class PillarboxNativeView: UIView, FlutterPlatformView {
         binaryMessenger messenger: FlutterBinaryMessenger?,
         flutterViewController: FlutterViewController
     ) {
-        let arguments = args as! [String: String]
-        let uri = arguments["uri"]!
-        rootView = PillarboxView(uri: uri)
-        channel = FlutterMethodChannel(name: "Pillarbox/\(viewId)", binaryMessenger: messenger!)
+        let arguments = args as! [String: Any]
+        let identifier = arguments["identifier"] as! Int
+        rootView = PillarboxView(player: controllers[identifier]!.player!)
         super.init(frame: .zero)
-        channel.setMethodCallHandler { [weak self] (call: FlutterMethodCall, result: FlutterResult) in
-            switch call.method {
-            case "play":
-                self?.rootView.player.play()
-                result(nil)
-            case "pause":
-                self?.rootView.player.pause()
-                result(nil)
-            default:
-                result(FlutterMethodNotImplemented)
-            }
-        }
-
         UIHostingController(rootView: rootView).attach(to: flutterViewController, in: self)
-        rootView.player.propertiesPublisher
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] properties in
-                self?.channel.invokeMethod("properties", arguments: ["state": "\(properties.playbackState)"])
-            }.store(in: &cancellables)
     }
 
     @available(*, unavailable)

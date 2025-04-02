@@ -1,5 +1,6 @@
 library pillarbox;
 
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/services.dart';
@@ -110,6 +111,8 @@ class PillarboxPlayerValue {
   }
 }
 
+var _baseId = 0;
+
 /// Controls a platform video player, and provides updates when the state is
 /// changing.
 ///
@@ -129,21 +132,21 @@ class PillarboxPlayerController extends ValueNotifier<PillarboxPlayerValue> {
   /// for the request to the [dataSource].
   PillarboxPlayerController.networkUrl(Uri url)
       : dataSource = url.toString(),
-        super(const PillarboxPlayerValue(duration: Duration.zero));
+        id = _baseId,
+        _plugin = const MethodChannel('pillarbox'),
+        super(const PillarboxPlayerValue(duration: Duration.zero)) {
+    _baseId++;
+  }
 
   /// The URI to the video file.
   final String dataSource;
 
   bool _isDisposed = false;
 
-  var _viewId = 0;
-  MethodChannel? _channel = null;
-
-  void attach(int viewId) {
-    _viewId = viewId;
-    _channel = MethodChannel('Pillarbox/$viewId');
-    _channel!.setMethodCallHandler(_handleMethod);
-  }
+  int id;
+  MethodChannel? _channel;
+  final MethodChannel? _plugin;
+  final _initalization = Completer<void>();
 
   Future<dynamic> _handleMethod(MethodCall call) async {
     switch (call.method) {
@@ -153,9 +156,30 @@ class PillarboxPlayerController extends ValueNotifier<PillarboxPlayerValue> {
         return Future.value("Text from native: $text");
       case 'properties':
         debugPrint("[Pillarbox] properties: ${call.arguments}");
+        var newvalue = value;
+        var height = double.tryParse(call.arguments["presentationSizeHeight"]);
+        var width = double.tryParse(call.arguments["presentationSizeWidth"]);
+        if (height != null && width != null && height != 0 && width != 0) {
+          newvalue = newvalue.copyWith(size: Size(width, height));
+        }
         var isPlaying = call.arguments["state"] == "playing";
         if (value.isPlaying != isPlaying) {
-          value = value.copyWith(isPlaying: isPlaying);
+          newvalue = newvalue.copyWith(isPlaying: isPlaying);
+        }
+        var isEnding = call.arguments["state"] == "ended";
+        var rate = double.tryParse(call.arguments["rate"]) ?? 0.0;
+        if (!value.isPlaying && isEnding && rate > 0.0) {
+          //state stay ended when replay
+          newvalue = newvalue.copyWith(isPlaying: true);
+        }
+        newvalue = newvalue.copyWith(isCompleted: isEnding && rate == 0.0);
+        var isPaused = call.arguments["state"] == "paused";
+        if (isPaused && !value.isInitialized) {
+          newvalue = newvalue.copyWith(isInitialized: true);
+          value = newvalue;
+          _initalization.complete();
+        } else {
+          value = newvalue;
         }
         return null;
       case 'is_playing':
@@ -167,6 +191,20 @@ class PillarboxPlayerController extends ValueNotifier<PillarboxPlayerValue> {
         return null;
       case 'state':
         debugPrint("[Pillarbox] state: ${call.arguments}");
+        var isReady = call.arguments == "ready";
+        if (value.isInitialized != isReady) {
+          value = value.copyWith(isInitialized: true);
+          _initalization.complete();
+        }
+        return null;
+      case 'video_size':
+        debugPrint("[Pillarbox] video_size: ${call.arguments}");
+        int height = call.arguments["height"];
+        int width = call.arguments["width"];
+        if (height != 0 && width != 0) {
+          value =
+              value.copyWith(size: Size(width.toDouble(), height.toDouble()));
+        }
         return null;
       default:
         throw UnimplementedError('${call.method} is not implemented');
@@ -175,8 +213,12 @@ class PillarboxPlayerController extends ValueNotifier<PillarboxPlayerValue> {
 
   /// Attempts to open the given [dataSource] and load metadata about the video.
   Future<void> initialize() async {
-    //TODO: Attach the Player to the controller directly and detect when initialized
-    value = value.copyWith(isInitialized: true);
+    var debug = await _plugin?.invokeMethod(
+        "initialize", {"identifier": id, "dataSource": dataSource});
+    debugPrint(debug);
+    _channel = MethodChannel('pillarbox/$id');
+    _channel!.setMethodCallHandler(_handleMethod);
+    return _initalization.future;
   }
 
   @override
@@ -184,6 +226,9 @@ class PillarboxPlayerController extends ValueNotifier<PillarboxPlayerValue> {
     if (_isDisposed) {
       return;
     }
+
+    var debug = await _plugin?.invokeMethod("dispose", {"identifier": id});
+    debugPrint(debug);
 
     _isDisposed = true;
     super.dispose();
@@ -271,7 +316,7 @@ class _PillarboxPlayerState extends State<PillarboxPlayer> {
 
   @override
   Widget build(BuildContext context) {
-    final Map<String, String> args = {"uri": widget.controller.dataSource};
+    final Map<String, int> args = {"identifier": widget.controller.id};
     if (Platform.isIOS) {
       return UiKitView(
         viewType: "pillarbox-view",
@@ -292,6 +337,6 @@ class _PillarboxPlayerState extends State<PillarboxPlayer> {
   }
 
   void _onPlatformViewCreated(int id) {
-    widget.controller.attach(id);
+    debugPrint("_onPlatformViewCreated:$id");
   }
 }
