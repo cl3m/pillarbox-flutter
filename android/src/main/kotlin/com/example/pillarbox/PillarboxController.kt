@@ -3,6 +3,8 @@ package com.example.pillarbox
 import android.content.Context
 import android.graphics.Color
 import android.media.session.PlaybackState
+import android.os.Handler
+import android.os.Looper
 import android.view.View
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
@@ -18,6 +20,15 @@ import io.flutter.plugin.common.MethodChannel
 class PillarboxController internal constructor(private val context: Context?, identifier: Int, uri: String, messenger: BinaryMessenger) : MethodChannel.MethodCallHandler {
     private lateinit var channel: MethodChannel
     lateinit var player: PillarboxExoPlayer
+    private val handler = Handler(Looper.getMainLooper())
+    private val position = object : Runnable {
+        override fun run() {
+            if (player.isPlaying) {
+                channel.invokeMethod("current_position", player.currentPosition)
+            }
+            handler.postDelayed(this, 500)
+        }
+    }
 
     init {
         channel = MethodChannel(messenger, "pillarbox/$identifier")
@@ -44,6 +55,7 @@ class PillarboxController internal constructor(private val context: Context?, id
                     else -> "unknown"
                 }
                 channel.invokeMethod("state", state)
+                channel.invokeMethod("duration", player.duration)
             }
 
             override fun onVideoSizeChanged(videoSize: VideoSize) {
@@ -60,6 +72,8 @@ class PillarboxController internal constructor(private val context: Context?, id
                 channel.invokeMethod("is_playing", if (isPlaying) "true" else "false")
             }
         })
+
+        handler.postDelayed(position, 500)
     }
 
     override fun onMethodCall(

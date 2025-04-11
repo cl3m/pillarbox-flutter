@@ -40,11 +40,22 @@ class PillarboxController {
                 self?.channel.invokeMethod("properties", arguments: [
                     "state": "\(properties.playbackState)",
                     "rate": "\(properties.rate)",
-                    "duration": "\(TimeInterval.zero)", // TODO: no public duration property
-                    "position": "\(CMTimeGetSeconds(properties.metrics()?.time ?? CMTime.zero))",
+                    "duration": "\(properties.seekableTimeRange.duration.seconds)", // TODO: no public duration property
+                    "position": "\(properties.time().seconds)",
                     "presentationSizeHeight": "\(properties.presentationSize?.height ?? 0)",
-                    "presentationSizeWidth": "\(properties.presentationSize?.width ?? 0)"
+                    "presentationSizeWidth": "\(properties.presentationSize?.width ?? 0)",
                 ])
             }.store(in: &cancellables)
+
+        Timer.TimerPublisher(interval: 0.5, runLoop: .main, mode: .common)
+            .autoconnect()
+            .sink { [weak self] _ in
+                if self?.player?.playbackState == .playing {
+                    self?.channel.invokeMethod("position", arguments: [
+                        "position": "\(self?.player?.time().seconds ?? 0.0)",
+                    ])
+                }
+            }
+            .store(in: &cancellables)
     }
 }

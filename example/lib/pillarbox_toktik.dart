@@ -110,13 +110,16 @@ class _PillarboxTokTikPageState extends State<PillarboxTokTikPage> {
                     aspectRatio: _controller.value.aspectRatio,
                     child: PillarboxPlayer(_controller),
                   ),
-                  const Padding(
-                    padding: EdgeInsets.all(20.0),
-                    child: LinearProgressIndicator(
-                      value: 0.5,
-                      color: Colors.white,
-                    ),
-                  )
+                  if (_controller.value.position.inMilliseconds > 0 &&
+                      _controller.value.duration.inMilliseconds > 0)
+                    Padding(
+                      padding: const EdgeInsets.all(20.0),
+                      child: LinearProgressIndicator(
+                        value: _controller.value.position.inMilliseconds /
+                            _controller.value.duration.inMilliseconds,
+                        color: Colors.white,
+                      ),
+                    )
                 ],
               )
             : Platform.isIOS

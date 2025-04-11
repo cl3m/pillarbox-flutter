@@ -154,6 +154,14 @@ class PillarboxPlayerController extends ValueNotifier<PillarboxPlayerValue> {
         String text = call.arguments as String;
         debugPrint("[Pillarbox] $text");
         return Future.value("Text from native: $text");
+      case 'position':
+        debugPrint("[Pillarbox] position: ${call.arguments}");
+        var position = double.tryParse(call.arguments["position"]);
+        if (position != null && position != 0) {
+          value = value.copyWith(
+              position: Duration(milliseconds: (position * 1000).toInt()));
+        }
+        return null;
       case 'properties':
         debugPrint("[Pillarbox] properties: ${call.arguments}");
         var newvalue = value;
@@ -165,6 +173,16 @@ class PillarboxPlayerController extends ValueNotifier<PillarboxPlayerValue> {
         var isPlaying = call.arguments["state"] == "playing";
         if (value.isPlaying != isPlaying) {
           newvalue = newvalue.copyWith(isPlaying: isPlaying);
+        }
+        var duration = double.tryParse(call.arguments["duration"]);
+        if (duration != null && duration != 0) {
+          newvalue = newvalue.copyWith(
+              duration: Duration(milliseconds: (duration * 1000).toInt()));
+        }
+        var position = double.tryParse(call.arguments["position"]);
+        if (position != null && position != 0) {
+          newvalue = newvalue.copyWith(
+              position: Duration(milliseconds: (position * 1000).toInt()));
         }
         var isEnding = call.arguments["state"] == "ended";
         var rate = double.tryParse(call.arguments["rate"]) ?? 0.0;
@@ -197,6 +215,21 @@ class PillarboxPlayerController extends ValueNotifier<PillarboxPlayerValue> {
           _initalization.complete();
         }
         return null;
+      case 'duration':
+        debugPrint("[Pillarbox] duration: ${call.arguments}");
+        var duration = Duration(milliseconds: call.arguments);
+        if (value.duration != duration) {
+          value = value.copyWith(duration: duration);
+        }
+        return null;
+      case 'current_position':
+        debugPrint("[Pillarbox] current_position: ${call.arguments}");
+        var duration = Duration(milliseconds: call.arguments);
+        if (value.duration != duration) {
+          value = value.copyWith(position: duration);
+        }
+        return null;
+
       case 'video_size':
         debugPrint("[Pillarbox] video_size: ${call.arguments}");
         int height = call.arguments["height"];
